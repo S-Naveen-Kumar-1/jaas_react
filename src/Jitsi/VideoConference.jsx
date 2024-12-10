@@ -43,7 +43,6 @@ const VideoConference = () => {
     fetchJwt();
   }, [userName]);
 
-  // Initialize JitsiMeetJS
   useEffect(() => {
     if (window.JitsiMeetJS) {
       window.JitsiMeetJS.init();

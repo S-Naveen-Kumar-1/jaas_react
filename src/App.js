@@ -9,12 +9,12 @@ function App() {
   return (
     <div className="App">
       <TracksProvider>
-      <JitsiConference/>
-      <AlertPage/>
+        <JitsiConference />
+        <AlertPage />
       </TracksProvider>
       {/* <JitsiConference/> */}
- 
-   
+
+
     </div>
   );
 }
