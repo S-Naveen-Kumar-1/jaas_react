@@ -51,14 +51,13 @@ const VideoConference = () => {
     fetchJwt();
   }, [userName]);
 
-  // Initialize JitsiMeetJS
   useEffect(() => {
     if (window.JitsiMeetJS) {
       const initOptions = {
-        // Your existing options
+      
         analytics: {
           rtcstatsEnabled: true,
-          rtcstatsEndpoint: "wss://rtcstats-server-8x8.jitsi.net/"  // Endpoint for RTCStats
+          rtcstatsEndpoint: "wss://rtcstats-server-8x8.jitsi.net/" 
         },
       };
   
@@ -138,7 +137,7 @@ const VideoConference = () => {
     setConference(conf);
     window.JitsiMeetJS.rtcstats.sendStatsEntry("user_joined", {
       userName: userName,
-      userEmail: `${userName}@example.com`,
+      userEmail: `${userName}@mail.com`,
       timestamp: new Date().toISOString(),
     });
   

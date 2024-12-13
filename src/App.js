@@ -4,16 +4,17 @@ import './App.css';
 import { TracksProvider } from './jitsi2/JitsiContext';
 import JitsiConference from './jitsi2/VideoConferencePage';
 import { AlertPage } from './jitsi2/AlertPage';
+import { SampleHtml } from './SampleHtml';
 
 function App() {
   return (
     <div className="App">
-      <TracksProvider>
+      {/* <TracksProvider>
         <JitsiConference />
         <AlertPage />
-      </TracksProvider>
+      </TracksProvider> */}
       {/* <JitsiConference/> */}
-
+      <SampleHtml />
 
     </div>
   );
