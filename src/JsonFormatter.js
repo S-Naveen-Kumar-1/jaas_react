@@ -1,10 +1,8 @@
 export function parseContentBlocks(htmlString) {
-    console.log(htmlString)
     const parser = new DOMParser();
     const doc = parser.parseFromString(htmlString, 'text/html');
 
 
-    console.log(doc)
     const contentBlocks = [
         ...Array.from(doc.querySelectorAll('.content-blocks')),
         ...Array.from(doc.querySelectorAll('.content-blocks1'))
@@ -63,46 +61,57 @@ export function parseContentBlocks(htmlString) {
         }
         //  combined case 3 and case 5
         else if (block.querySelector('.content-blocks-childs') || block.querySelector('.solved-example-card')) {
-            // Check if .content-blocks-childs contains a .solved-example-block
-            console.log("inside case 3 and 5")
-
+            console.log("inside case 3 and 5");
+        
             const hasSolvedExampleBlock = block.querySelector('.content-blocks-childs .solved-example-block');
             const hasDirectSolvedExampleCard = block.querySelector('.solved-example-card');
-
+        
             if (hasSolvedExampleBlock || hasDirectSolvedExampleCard) {
-                console.log("inside case 5")
-
-                // Case 5 logic
+                console.log("inside case 5");
+        
                 const solvedExampleBlocks = hasSolvedExampleBlock
                     ? block.querySelectorAll('.content-blocks-childs .solved-example-block')
                     : [block]; // If direct cards are found, treat the block as the solved-example-block
-
+        
                 solvedExampleBlocks.forEach((solvedBlock, blockIndex) => {
                     const title = 'Solved examples';
                     const values = [];
-
+        
                     // Iterate over each solved-example-card
                     Array.from(solvedBlock.querySelectorAll('.solved-example-card')).forEach((card, cardIndex) => {
                         // Extract the question
                         const question = card.querySelector('h3.solved-example-questions')?.textContent.trim();
-
+        
                         // Extract options (li elements inside ol.solved-examples)
-                        const options = Array.from(card.querySelectorAll('ol.solved-examples li')).map(li => li.innerHTML.trim());
-
+                        const options = Array.from(card.querySelectorAll('ol.solved-examples li')).map(li => {
+                            // Wrap any math content in LaTeX format inside span.math-feild
+                            const mathContent = li.querySelector('.math-feild');
+                            if (mathContent) {
+                                // Ensure the backslashes in LaTeX expressions are properly escaped
+                                return `<span class="math-feild">\\(${mathContent.textContent.trim().replace(/\\/g, '\\\\')}\\)</span>`; // Wrap math content in LaTeX format
+                            }
+                            return li.innerHTML.trim();
+                        });
+        
                         // Extract solution (span inside div.solved-example-answers)
                         const solution = card.querySelector('div.solved-example-answers span.span-solution')?.innerHTML.trim();
-
+                        const formattedSolution = solution ? solution.replace(/\\math-feild/g, '\\($&\\)') : null;  // Replace math in solution with LaTeX format
+        
+                        // Extract an image if present
+                        const image = card.querySelector('div.solved-example-answers img')?.getAttribute('src');
+        
                         // Only push valid data into the values array
-                        if (question && options.length > 0 && solution) {
+                        if (question && (options.length > 0 || formattedSolution || image)) {
                             values.push({
                                 question,
                                 options,
-                                solution,
+                                solution: formattedSolution || null,
+                                image: image || null,
                                 sequence: cardIndex + 1
                             });
                         }
                     });
-
+        
                     // Create the JSON object
                     const jsonObj = {
                         type: 'solved_examples',
@@ -110,23 +119,22 @@ export function parseContentBlocks(htmlString) {
                         values,
                         sequence: blockIndex + 1
                     };
-
+        
                     // Push the JSON object to the result array
                     result.push(jsonObj);
                 });
-            }
-            else {
-                console.log("inside case 3")
-
+            } else {
+                console.log("inside case 3");
+        
                 // Case 3 logic
                 const sections = block.querySelectorAll('.content-blocks-childs'); // Get all content-blocks-childs
-
+        
                 sections.forEach((section) => {
                     const titleElement = section.querySelector('.heading_plus_wrapper, .sub_heading');
                     const title = titleElement ? titleElement.textContent : '';
                     const id = titleElement ? titleElement.id : '';
                     const values = [];
-
+        
                     // Loop through each child element inside the section
                     let sequence = 1;
                     section.childNodes.forEach((child) => {
@@ -134,16 +142,16 @@ export function parseContentBlocks(htmlString) {
                             const tag = child.tagName.toLowerCase();
                             let content = null;
                             let image = null;
-
+        
                             // Handle different tags (h2, h3, p, img)
                             if (tag === 'h2' || tag === 'h3' || tag === 'p') {
                                 content = child.textContent.trim();
                             }
-
+        
                             if (tag === 'img') {
                                 image = child.getAttribute('src');
                             }
-
+        
                             // Add the content to the values array if it's not null or undefined
                             if (content || image) {
                                 values.push({
@@ -156,7 +164,7 @@ export function parseContentBlocks(htmlString) {
                             }
                         }
                     });
-
+        
                     // Create the JSON object for this section
                     const jsonObj = {
                         type: "para_sub_list",
@@ -164,12 +172,61 @@ export function parseContentBlocks(htmlString) {
                         id: id,
                         values: values
                     };
-
+        
                     // Push the JSON object to the result array
                     result.push(jsonObj);
                 });
             }
         }
+        
+        
+                // Case 8: div contains table tag with class="content-blocks-cards"
+
+        else if (block.querySelector('.content-blocks-cards')) {
+            console.log("inside case 8");
+        
+            // Get the title of the block (heading_plus_wrapper)
+            const title = block.querySelector('.heading_plus_wrapper')?.textContent.trim();
+            
+            // Find the content cards
+            const cards = block.querySelectorAll('.image-cards');
+            
+            // Map through all the image cards and gather necessary data
+            const values = Array.from(cards).map(card => {
+              const imageSrc = card.querySelector('img')?.src;
+              const imageAlt = card.querySelector('img')?.alt;
+              const downloadUrl = card.querySelector('.image-cards-download')?.href;
+              const downloadText = card.querySelector('.image-cards-download')?.textContent.trim();
+              const downloadIcon = card.querySelector('.image-cards-download img')?.src;
+              
+              return {
+                type: "tables_chart_content",
+                title: card.querySelector('.image-cards-text')?.textContent.trim(),
+                image: {
+                  src: imageSrc,
+                  alt: imageAlt
+                },
+                download: {
+                  url: downloadUrl,
+                  text: downloadText,
+                  icon: downloadIcon
+                }
+              };
+            });
+        
+            // Push to the JSON object
+            jsonObj={
+              type: 'tables_chart',
+              id: `topic${blockIndex + 1}`,  // ID for the block
+              title: title,
+              sequence: blockIndex + 1,
+              values: values
+            };
+          }
+        
+        
+        
+        
 
         // Case 3: div contains table tag with class="sub-topics-table"
 
@@ -254,8 +311,8 @@ export function parseContentBlocks(htmlString) {
                 const cleanedFaqAnswer = faqAnswer.replace(/\\\"/g, '"').replace(/\\\\/g, '\\'); // Clean up escaped quotes and backslashes
                 // Push each FAQ as an object to the faqData array
                 faqData.push({
-                    faqtitle: faqTitle,
-                    faqanswer: cleanedFaqAnswer
+                    question: faqTitle,
+                    answer: cleanedFaqAnswer
                 });
             });
 
@@ -306,6 +363,7 @@ export function parseContentBlocks(htmlString) {
         // Case 4: div does not contain table tag or ul tag (for paragraphs and images)
         else if (!block.querySelector('table') && !block.querySelector('ul')) {
             console.log("inside case 4")
+
 
             const title = block.querySelector('h2.heading_plus_wrapper')?.textContent.trim() || null;
             const id = block.querySelector('h2.heading_plus_wrapper')?.id || null;

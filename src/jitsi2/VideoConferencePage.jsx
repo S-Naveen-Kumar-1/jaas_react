@@ -1,254 +1,54 @@
-import React, { useEffect, useState, useRef } from "react";
-import axios from "axios";
-import "../Jitsi/VideoConference.css";
-import { useTracks } from "./JitsiContext";
-import { BASE_URL } from "../helpers/config";
+import React, { useEffect, useRef } from 'react';
+import { useTracks } from './JitsiContext';
+import './JitsiConference.css';
 
-const VideoConference = () => {
+const JitsiConference = () => {
   const {
-    localAudioTrack,
     localVideoTrack,
+    localAudioTrack,
     remoteTracks,
-    connection,
-    setConnection,
+    screenShareTrack,
+    joinMeeting,
     setLocalAudioTrack,
     setLocalVideoTrack,
-    setRemoteTracks,
-    setConference,
+    isJoined,
     conference,
-    appId,
-    setAppId,
-    room,
-    setRoom,
-    jwt,
-    setJwt,
-    isConnected,
-    setIsConnected,
-    userName,
-    setUserName,
     setScreenShareTrack,
-    screenShareTrack,
+    isConnected,
   } = useTracks();
-  const videoRefs = useRef({});
 
-  // Fetch JWT Token
-  useEffect(() => {
-    const fetchJwt = async () => {
-      try {
-        const response = await axios.get(`${BASE_URL}/getJITSIJWT`, {
-          params: {
-            userName,
-            userEmail: `${userName}@example.com`,
-            avatar: "https://d325uq16osfh2r.cloudfront.net/games/FamilyFun.png",
-          },
-        });
-        setJwt(response.data.token);
-      } catch (error) {
-        console.error("Error fetching JWT:", error);
-      }
-    };
-
-    fetchJwt();
-  }, [userName]);
+  const localVideoRef = useRef(null);
 
   useEffect(() => {
     if (window.JitsiMeetJS) {
-      const initOptions = {
-      
-        analytics: {
-          rtcstatsEnabled: true,
-          rtcstatsEndpoint: "wss://rtcstats-server-8x8.jitsi.net/" 
-        },
-      };
-  
-      window.JitsiMeetJS.init(initOptions);
-      console.log("JitsiMeetJS initialized with RTCStats enabled!");
+      window.JitsiMeetJS.init({ disableAudioLevels: false });
+      console.log('window.JitsiMeetJS initialized');
+      createLocalTracks();
     } else {
-      console.error("JitsiMeetJS is not loaded.");
+      console.error('window.JitsiMeetJS is not loaded.');
     }
   }, []);
-  
 
-  // Create Local Tracks
   const createLocalTracks = async () => {
-    if (localAudioTrack && localVideoTrack) return; // Local tracks already created
+    if (localAudioTrack && localVideoTrack) return;
 
     try {
       const tracks = await window.JitsiMeetJS.createLocalTracks({
-        devices: ["audio", "video"],
+        devices: ['audio', 'video'],
+        resolution: 720,
       });
 
-      tracks.forEach((track) => {
-        if (track.getType() === "audio") setLocalAudioTrack(track);
-        else if (track.getType() === "video") setLocalVideoTrack(track);
+      tracks.forEach(track => {
+        if (track.getType() === 'audio') setLocalAudioTrack(track);
+        else if (track.getType() === 'video') setLocalVideoTrack(track);
       });
-      console.log("Local tracks created:", tracks);
+
+      console.log('Local tracks created:', tracks);
     } catch (error) {
-      console.error("Error creating local tracks:", error);
+      console.error('Error creating local tracks:', error);
     }
   };
 
-  // Handle Remote Tracks
-  const handleRemoteTrack = (track) => {
-    if (track.isLocal()) return; // Ignore local tracks
-
-    const participantId = track.getParticipantId();
-    const videoType = track.videoType;
-
-    console.log(
-      `Remote track added: participantId=${participantId}, trackId=${track.getId()}, videoType=${videoType}`
-    );
-
-    if (videoType === "desktop") {
- 
-      // Handle screen share tracks separately
-      console.log("Screen share track detected:", track);
-      setScreenShareTrack(track);
-    }
-     else {
-      // Handle regular remote tracks
-      setRemoteTracks((prev) => {
-        const existingTracks = prev[participantId] || [];
-        if (!existingTracks.find((t) => t.getId() === track.getId())) {
-          return {
-            ...prev,
-            [participantId]: [...existingTracks, track],
-          };
-        }
-        return prev;
-      });
-    }
-  };
-
-  // Build Connection Options
-  const buildOptions = (appId, room) => ({
-    hosts: {
-      domain: "8x8.vc",
-      muc: `conference.${appId}.8x8.vc`,
-      focus: "focus.8x8.vc",
-    },
-    serviceUrl: `wss://8x8.vc/${appId}/xmpp-websocket?room=${room}`,
-  });
-
-  // Handle Connection Success
-  const onConnectionSuccess = (conn) => {
-    console.log("Connection established!");
-    const conf = conn.initJitsiConference(room, { openBridgeChannel: true });
-    setConference(conf);
-    window.JitsiMeetJS.rtcstats.sendStatsEntry("user_joined", {
-      userName: userName,
-      userEmail: `${userName}@mail.com`,
-      timestamp: new Date().toISOString(),
-    });
-  
-    conf.on(window.JitsiMeetJS.events.conference.TRACK_ADDED, (track) => {
-      console.log("TRACK_ADDED:", track);
-      if (!track.isLocal()) {
-        handleRemoteTrack(track);
-      }
-    });
-    
-
-    conf.on(window.JitsiMeetJS.events.conference.TRACK_REMOVED, (track) => {
-      console.log("TRACK_REMOVED:", track);
-      const participantId = track.getParticipantId();
-      setRemoteTracks((prev) => ({
-        ...prev,
-        [participantId]:
-          prev[participantId]?.filter((t) => t.getId() !== track.getId()) || [],
-      }));
-    });
-
-    conf.on(window.JitsiMeetJS.events.conference.CONFERENCE_JOINED, () => {
-      console.log("Conference joined!");
-      setIsConnected(true);
-    });
-
-    conf.on(window.JitsiMeetJS.events.conference.USER_JOINED, (id) => {
-      console.log(`User joined: ${id}`);
-    });
-
-    conf.on(window.JitsiMeetJS.events.conference.USER_LEFT, (id) => {
-      console.log(`User left: ${id}`);
-      window.JitsiMeetJS.rtcstats.sendStatsEntry("user_left", {
-        userId: id,
-        timestamp: new Date().toISOString(),
-      });
-    });
-
-    // Add Local Tracks
-    if (localAudioTrack) conf.addTrack(localAudioTrack);
-    if (localVideoTrack) conf.addTrack(localVideoTrack);
-
-    conf.join();
-  };
-
-  // Join Meeting
-  const joinMeeting = async () => {
-    await createLocalTracks();
-    window.JitsiMeetJS.rtcstats.sendStatsEntry("user_joined", {
-      userName: userName,
-      userEmail: `${userName}@example.com`,
-      timestamp: new Date().toISOString(),
-    })
-    const options = buildOptions(appId, room);
-    const conn = new window.JitsiMeetJS.JitsiConnection(null, jwt, options);
-
-    conn.addEventListener(
-      window.JitsiMeetJS.events.connection.CONNECTION_ESTABLISHED,
-      () => onConnectionSuccess(conn)
-    );
-
-    conn.addEventListener(
-      window.JitsiMeetJS.events.connection.CONNECTION_FAILED,
-      (error) => console.error("Connection failed:", error)
-    );
-
-    conn.connect();
-    setConnection(conn);
-  };
-
-  // Leave Meeting
-  const leaveMeeting = () => {
-    if (conference) {
-      conference.leave();
-      setIsConnected(false);
-    }
-    
-    if (localAudioTrack) localAudioTrack.dispose();
-    if (localVideoTrack) localVideoTrack.dispose();
-    setLocalAudioTrack(null);
-    setLocalVideoTrack(null);
-    setRemoteTracks({});
-    if (connection) connection.disconnect();
-  };
-
-  // Start Screen Share
-  const startScreenShare = async () => {
-    try {
-      const tracks = await window.JitsiMeetJS.createLocalTracks({
-        devices: ["desktop"], // Request screen share track
-      });
-
-      const screenTrack = tracks.find((track) => track.getType() === "video");
-      if (screenTrack) {
-        if (conference) {
-          await conference.addTrack(screenTrack); // Add to the conference
-        }
-        if (screenShareTrack) {
-          screenShareTrack.dispose(); // Dispose of previous track
-        }
-        setScreenShareTrack(screenTrack); // Update state
-        console.log("Screen share started", screenTrack);
-      } else {
-        console.error("No screen track created.");
-      }
-    } catch (error) {
-      console.error("Error starting screen share:", error);
-    }
-  };
-
-  // Stop Screen Share
   const stopScreenShare = async () => {
     if (screenShareTrack) {
       if (conference) {
@@ -260,63 +60,140 @@ const VideoConference = () => {
     }
   };
 
-  console.log(screenShareTrack, "jksdkjc");
+  const startScreenShare = async () => {
+    try {
+      const tracks = await window.JitsiMeetJS.createLocalTracks({
+        devices: ["desktop"],
+      });
+
+      const screenTrack = tracks.find((track) => track.getType() === "video");
+      if (screenTrack) {
+        if (conference) {
+          await conference.addTrack(screenTrack);
+        }
+        if (screenShareTrack) {
+          screenShareTrack.dispose();
+        }
+        setScreenShareTrack(screenTrack);
+        console.log("Screen share started", screenTrack);
+      } else {
+        console.error("No screen track created.");
+      }
+    } catch (error) {
+      console.error("Error starting screen share:", error);
+    }
+  };
+
+  const applyVirtualBackground = (videoRef, backgroundUrl) => {
+    if (!videoRef || !videoRef.srcObject) return;
+  
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d');
+  
+    const bgImg = new Image();
+    bgImg.crossOrigin = 'anonymous'; // Only works if the server allows it
+    bgImg.src = backgroundUrl;
+  
+    const video = videoRef;
+  
+    bgImg.onload = () => {
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
+  
+      const drawFrame = () => {
+        if (video.videoWidth === 0 || video.videoHeight === 0) return;
+  
+        ctx.drawImage(bgImg, 0, 0, canvas.width, canvas.height); // Background
+        ctx.drawImage(video, 0, 0, canvas.width, canvas.height); // Video
+  
+        requestAnimationFrame(drawFrame);
+      };
+  
+      drawFrame();
+  
+      try {
+        const stream = canvas.captureStream();
+        video.srcObject = stream;
+      } catch (e) {
+        console.error('Could not capture canvas stream:', e);
+      }
+    };
+  
+    bgImg.onerror = () => {
+      console.error('Failed to load background image');
+    };
+  };
+  
+
   return (
-    <div className="video-conference">
-      <input
-        type="text"
-        placeholder="Your Name"
-        value={userName}
-        onChange={(e) => setUserName(e.target.value)}
-      />
-      <div className="local-tracks">
-        {localVideoTrack && (
-          <video
-            ref={(ref) => ref && localVideoTrack.attach(ref)}
-            autoPlay
-            playsInline
-            className="video"
-          />
-        )}
-      </div>
-      <div className="remote-tracks">
+    <div className="conference-wrapper">
+      {!isConnected && (
+        <button className="join-btn" onClick={joinMeeting}>Join Meeting</button>
+      )}
+
+      <div className="tracks-section">
+        <div className="video-card">
+          <div className="label">You</div>
+          {localVideoTrack ? (
+            <video
+              ref={(ref) => {
+                if (ref && localVideoTrack) localVideoTrack.attach(ref);
+                localVideoRef.current = ref;
+              }}
+              autoPlay
+              playsInline
+              className="video"
+            />
+          ) : (
+            <p>Loading camera...</p>
+          )}
+        </div>
+
         {Object.keys(remoteTracks).map((participantId) =>
           remoteTracks[participantId]
             .filter((track) => track.getType() === "video")
             .map((track) => (
-              <video
-                key={track.getId()}
-                ref={(ref) => ref && track.attach(ref)}
-                autoPlay
-                playsInline
-                className="video"
-              />
+              <div key={track.getId()} className="video-card">
+                <div className="label">Remote</div>
+                <video
+                  ref={(ref) => ref && track.attach(ref)}
+                  autoPlay
+                  playsInline
+                  className="video"
+                />
+              </div>
             ))
         )}
-      </div>
-      <div className="screen-share">
-        {screenShareTrack ? (
-          <video
-            ref={(ref) => ref && screenShareTrack.attach(ref)}
-            autoPlay
-            playsInline
-            className="screen-share-video"
-          />
-        ) : (
-          <p>No screen sharing active</p>
+
+        {screenShareTrack && (
+          <div className="video-card screen-share">
+            <div className="label">Screen Share</div>
+            <video
+              ref={(ref) => ref && screenShareTrack.attach(ref)}
+              autoPlay
+              playsInline
+              className="video"
+            />
+          </div>
         )}
       </div>
 
-      <button onClick={joinMeeting}>Join Meeting</button>
       {isConnected && (
-        <>
-          <button onClick={startScreenShare}>Start Screen Share</button>
-          <button onClick={stopScreenShare}>Stop Screen Share</button>
-          <button onClick={leaveMeeting}>Leave Meeting</button>
-        </>
+        <div className="controls">
+          <button onClick={startScreenShare} className="control-btn">Start Screen Share</button>
+          <button onClick={stopScreenShare} className="control-btn">Stop Screen Share</button>
+          <button
+            onClick={() =>
+              applyVirtualBackground(localVideoRef.current, 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcSaJbOPqCm6-6KCBAeEnl6GZ2YQkLhMpq1wJg&s')
+            }
+            className="control-btn"
+          >
+            Apply Virtual Background
+          </button>
+        </div>
       )}
     </div>
   );
 };
 
-export default VideoConference;
+export default JitsiConference;

@@ -1,0 +1,65 @@
+.conference-wrapper {
+    padding: 20px;
+    background-color: #f4f4f9;
+    font-family: sans-serif;
+    text-align: center;
+  }
+  
+  .join-btn {
+    padding: 12px 24px;
+    font-size: 18px;
+    background-color: #4CAF50;
+    border: none;
+    color: white;
+    border-radius: 12px;
+    cursor: pointer;
+    margin-bottom: 20px;
+  }
+  
+  .tracks-section {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 20px;
+  }
+  
+  .video-card {
+    background-color: white;
+    padding: 10px;
+    border-radius: 16px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+    max-width: 320px;
+  }
+  
+  .video {
+    width: 100%;
+    border-radius: 12px;
+  }
+  
+  .label {
+    font-weight: bold;
+    margin-bottom: 8px;
+  }
+  
+  .controls {
+    margin-top: 20px;
+  }
+  
+  .control-btn {
+    padding: 10px 20px;
+    margin: 5px;
+    background-color: #007BFF;
+    border: none;
+    color: white;
+    border-radius: 10px;
+    cursor: pointer;
+  }
+  
+  .control-btn:hover {
+    background-color: #0056b3;
+  }
+  
+  .screen-share {
+    border: 2px dashed #007BFF;
+  }
+  
