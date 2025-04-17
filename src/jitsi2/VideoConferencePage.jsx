@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useTracks } from './JitsiContext';
 import './JitsiConference.css';
 
@@ -18,14 +18,17 @@ const JitsiConference = () => {
   } = useTracks();
 
   const localVideoRef = useRef(null);
+  const [backgroundUrl, setBackgroundUrl] = useState(
+    "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQyBJBXL5ATCXe7lcuqm8sess0nK49jNLVUvA&s" 
+  );
 
   useEffect(() => {
     if (window.JitsiMeetJS) {
       window.JitsiMeetJS.init({ disableAudioLevels: false });
-      console.log('window.JitsiMeetJS initialized');
+      console.log('JitsiMeetJS initialized');
       createLocalTracks();
     } else {
-      console.error('window.JitsiMeetJS is not loaded.');
+      console.error('JitsiMeetJS is not loaded.');
     }
   }, []);
 
@@ -38,7 +41,7 @@ const JitsiConference = () => {
         resolution: 720,
       });
 
-      tracks.forEach(track => {
+      tracks.forEach((track) => {
         if (track.getType() === 'audio') setLocalAudioTrack(track);
         else if (track.getType() === 'video') setLocalVideoTrack(track);
       });
@@ -48,7 +51,6 @@ const JitsiConference = () => {
       console.error('Error creating local tracks:', error);
     }
   };
-
   const stopScreenShare = async () => {
     if (screenShareTrack) {
       if (conference) {
@@ -83,52 +85,73 @@ const JitsiConference = () => {
       console.error("Error starting screen share:", error);
     }
   };
+  const virtualBackgroundEffect = {
+    isEnabled: (track) => track.isVideoTrack(),
+    stopEffect: () => {
+      console.log('Stopping virtual background effect.');
+    },
+    startEffect: (stream) => {
+      console.log('Starting virtual background effect.');
 
-  const applyVirtualBackground = (videoRef, backgroundUrl) => {
-    if (!videoRef || !videoRef.srcObject) return;
-  
-    const canvas = document.createElement('canvas');
-    const ctx = canvas.getContext('2d');
-  
-    const bgImg = new Image();
-    bgImg.crossOrigin = 'anonymous'; // Only works if the server allows it
-    bgImg.src = backgroundUrl;
-  
-    const video = videoRef;
-  
-    bgImg.onload = () => {
-      canvas.width = video.videoWidth;
-      canvas.height = video.videoHeight;
-  
-      const drawFrame = () => {
-        if (video.videoWidth === 0 || video.videoHeight === 0) return;
-  
-        ctx.drawImage(bgImg, 0, 0, canvas.width, canvas.height); // Background
-        ctx.drawImage(video, 0, 0, canvas.width, canvas.height); // Video
-  
-        requestAnimationFrame(drawFrame);
+      const canvas = document.createElement('canvas');
+      const ctx = canvas.getContext('2d');
+      const videoElement = document.createElement('video');
+      videoElement.srcObject = stream;
+
+      const bgImg = new Image();
+      bgImg.crossOrigin = 'anonymous'; 
+      bgImg.src = backgroundUrl;
+
+      bgImg.onload = () => {
+        console.log('Background image loaded successfully.');
+        videoElement.play();
+
+        const drawFrame = () => {
+          if (videoElement.videoWidth && videoElement.videoHeight) {
+            canvas.width = videoElement.videoWidth;
+            canvas.height = videoElement.videoHeight;
+
+            ctx.drawImage(bgImg, 0, 0, canvas.width, canvas.height);
+
+            ctx.drawImage(videoElement, 0, 0, canvas.width, canvas.height);
+          }
+
+          requestAnimationFrame(drawFrame);
+        };
+
+        drawFrame();
       };
-  
-      drawFrame();
-  
-      try {
-        const stream = canvas.captureStream();
-        video.srcObject = stream;
-      } catch (e) {
-        console.error('Could not capture canvas stream:', e);
-      }
-    };
-  
-    bgImg.onerror = () => {
-      console.error('Failed to load background image');
-    };
+
+      bgImg.onerror = () => {
+        console.error('Failed to load background image.');
+      };
+
+      return canvas.captureStream();
+    },
   };
-  
+
+  const applyVirtualBackgroundEffect = async () => {
+    if (!localVideoTrack) {
+      console.error('No video track available.');
+      return;
+    }
+
+    try {
+      await localVideoTrack.setEffect(virtualBackgroundEffect);
+      console.log('Virtual background effect applied successfully.');
+    } catch (error) {
+      console.error('Error applying virtual background effect:', error);
+    }
+  };
+
+
 
   return (
     <div className="conference-wrapper">
       {!isConnected && (
-        <button className="join-btn" onClick={joinMeeting}>Join Meeting</button>
+        <button className="join-btn" onClick={joinMeeting}>
+          Join Meeting
+        </button>
       )}
 
       <div className="tracks-section">
@@ -151,7 +174,7 @@ const JitsiConference = () => {
 
         {Object.keys(remoteTracks).map((participantId) =>
           remoteTracks[participantId]
-            .filter((track) => track.getType() === "video")
+            .filter((track) => track.getType() === 'video')
             .map((track) => (
               <div key={track.getId()} className="video-card">
                 <div className="label">Remote</div>
@@ -180,12 +203,11 @@ const JitsiConference = () => {
 
       {isConnected && (
         <div className="controls">
-          <button onClick={startScreenShare} className="control-btn">Start Screen Share</button>
+             <button onClick={startScreenShare} className="control-btn">Start Screen Share</button>
           <button onClick={stopScreenShare} className="control-btn">Stop Screen Share</button>
+      
           <button
-            onClick={() =>
-              applyVirtualBackground(localVideoRef.current, 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcSaJbOPqCm6-6KCBAeEnl6GZ2YQkLhMpq1wJg&s')
-            }
+            onClick={applyVirtualBackgroundEffect}
             className="control-btn"
           >
             Apply Virtual Background
